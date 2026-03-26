@@ -1,0 +1,29 @@
+# Model weights (download separately)
+weights/*.pth
+weights/*.pt
+
+# Datasets (download separately)
+/data/
+
+# Experiment outputs
+Personalize-SAM/save/
+Matcher/save/
+Matcher/output/
+
+# Logs
+*.out
+*.log
+nohup.out
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

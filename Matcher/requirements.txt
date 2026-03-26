@@ -1,0 +1,10 @@
+future
+opencv-python
+timm
+POT
+omegaconf
+iopath
+numpy
+tqdm
+xformers
+tensorboardX

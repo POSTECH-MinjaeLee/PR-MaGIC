@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR-MaGIC: Prompt Refinement Via Mask Decoder Gradient Flow For In-Context Segmentation</title>
+
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Roboto+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Open Sans', sans-serif;
+      line-height: 1.7;
+      color: #2c2c2c;
+      background: #fff;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 48px 24px 32px;
+      background: #fafafa;
+      border-bottom: 1px solid #e8e8e8;
+    }
+
+    header h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      line-height: 1.35;
+      max-width: 820px;
+      margin: 0 auto 20px;
+      color: #111;
+    }
+
+    .authors {
+      font-size: 1.08rem;
+      margin-bottom: 4px;
+    }
+
+    .authors sup { font-size: 0.75em; }
+
+    .equal-note {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 6px;
+    }
+
+    .affiliations {
+      font-size: 1rem;
+      color: #555;
+      margin-bottom: 8px;
+    }
+
+    .conference {
+      display: inline-block;
+      background: #0056b3;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 4px 18px;
+      border-radius: 20px;
+      margin: 10px 0 20px;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      padding: 8px 18px;
+      background: #222;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .links a:hover { background: #0056b3; }
+
+    /* ── Sections ── */
+    section { margin-bottom: 52px; }
+
+    h2 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 18px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    /* ── Abstract ── */
+    .abstract-box {
+      background: #f5f7fb;
+      border-left: 4px solid #0056b3;
+      padding: 22px 26px;
+      border-radius: 6px;
+      font-size: 0.97rem;
+      line-height: 1.8;
+    }
+
+    /* ── Figures ── */
+    figure {
+      margin: 0 0 10px;
+    }
+
+    figure img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+      border-radius: 6px;
+    }
+
+    figcaption {
+      text-align: center;
+      font-size: 0.88rem;
+      color: #555;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    /* ── Intro comparison grid ── */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin: 16px 0;
+    }
+
+    .comparison-grid .cell {
+      text-align: center;
+    }
+
+    .comparison-grid .cell img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .comparison-grid .cell .label {
+      font-size: 0.78rem;
+      color: #444;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+
+    .comparison-grid .cell.highlight img {
+      border: 2px solid #0056b3;
+    }
+
+    /* ── Results grid (4 columns) ── */
+    .results-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .results-row .cell {
+      text-align: center;
+    }
+
+    .results-row .cell img {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      background: #f5f5f5;
+    }
+
+    .results-row .cell.highlight img {
+      border: 2px solid #2ecc71;
+    }
+
+    .results-row .cell .label {
+      font-size: 0.78rem;
+      color: #444;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+
+    .results-section-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #333;
+      margin: 12px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .baseline-label {
+      font-size: 0.82rem;
+      color: #666;
+      font-style: italic;
+      margin-bottom: 4px;
+    }
+
+    /* ── Contributions ── */
+    .contributions {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .contributions li {
+      display: flex;
+      gap: 14px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      background: #f8f9ff;
+      border-radius: 8px;
+      border: 1px solid #e3e8f0;
+      font-size: 0.95rem;
+    }
+
+    .contributions li .icon {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      line-height: 1.5;
+    }
+
+    /* ── Quantitative table ── */
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 620px;
+    }
+
+    th, td {
+      padding: 7px 8px;
+      text-align: center;
+      border: 1px solid #dde;
+    }
+
+    thead tr { background: #eef2fa; }
+
+    thead th { font-weight: 700; color: #222; }
+
+    tbody tr:nth-child(even) { background: #f8f9ff; }
+
+    .col-method { text-align: left !important; font-weight: 600; }
+
+    .improved { font-weight: 700; color: #0056b3; }
+
+    .group-header { background: #dde8f5 !important; font-weight: 700; }
+
+    /* ── Method steps ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .step-card {
+      background: #f5f7fb;
+      border-radius: 8px;
+      padding: 16px 18px;
+      border: 1px solid #e0e6f0;
+    }
+
+    .step-card .step-num {
+      display: inline-block;
+      background: #0056b3;
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .step-card h4 {
+      font-size: 0.93rem;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    .step-card p {
+      font-size: 0.87rem;
+      margin: 0;
+      color: #444;
+      line-height: 1.5;
+    }
+
+    /* ── Equation box ── */
+    .eq-box {
+      background: #f0f4fc;
+      border: 1px solid #cdd7ee;
+      border-radius: 6px;
+      padding: 14px 20px;
+      margin: 16px 0;
+      text-align: center;
+      font-size: 0.96rem;
+      overflow-x: auto;
+    }
+
+    /* ── BibTeX ── */
+    pre {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      font-size: 0.82rem;
+      color: #888;
+      padding: 28px 24px;
+      border-top: 1px solid #eee;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      header h1 { font-size: 1.35rem; }
+      .comparison-grid { grid-template-columns: repeat(3, 1fr); }
+      .comparison-grid .cell:nth-child(4),
+      .comparison-grid .cell:nth-child(5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════ HEADER ════════════ -->
+<header>
+  <h1>PR-MaGIC: Prompt Refinement Via Mask Decoder Gradient Flow<br>For In-Context Segmentation</h1>
+
+  <div class="authors">
+    Minjae Lee<sup>*</sup>,&nbsp;
+    Sungwoo Hur<sup>*</sup>,&nbsp;
+    Soojin Hwang,&nbsp;
+    Won Hwa Kim
+  </div>
+  <div class="equal-note"><sup>*</sup> Equal contribution</div>
+  <div class="affiliations">
+    Pohang University of Science and Technology (POSTECH), Pohang, South Korea<br>
+    <small>{lalswo010, hursungwoo, soojin0622, wonhwa}@postech.ac.kr</small>
+  </div>
+  <div class="conference">CVPR 2026</div>
+
+  <div class="links">
+    <a href="[Link to PDF]">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+      Paper
+    </a>
+    <a href="https://github.com/POSTECH-MinjaeLee/PR-MaGIC">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      Code
+    </a>
+    <a href="[Link to arXiv]">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+      arXiv
+    </a>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ════════════ TEASER ════════════ -->
+  <section>
+    <div style="display:flex; align-items:center; gap:28px; margin:8px 0;">
+      <div style="flex:0 0 auto; width:42%;">
+        <img src="static/images/intro_fig.png" alt="PR-MaGIC Gradient Flow Overview"
+             style="width:100%; height:auto; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.10); display:block;">
+      </div>
+      <div style="flex:1; font-size:0.9rem; line-height:1.75; color:#444;">
+        <p style="margin:0 0 10px;">
+          <strong>Illustration of PR-MaGIC.</strong>
+        </p>
+        <p style="margin:0 0 10px;">
+          PR-MaGIC iteratively refines prompts for segmentation by updating the embedding vector
+          distribution &rho;<sub>t</sub> with mask decoder gradient flow.
+        </p>
+        <p style="margin:0 0 10px;">
+          This process minimizes the KL divergence between &rho;<sub>t</sub> and the target
+          embedding vector distribution &mu; derived from the ground truth mask.
+        </p>
+        <p style="margin:0;">
+          At each iteration <em>t</em>, given an initial set of prompts and their corresponding
+          segmentation masks, the embedding vector <em>z</em><sub>t</sub> is updated along the
+          gradient flow derived from the mask decoder, which in turn updates &rho;<sub>t</sub>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ COMPARISON TEASER ════════════ -->
+  <section>
+    <div class="comparison-grid">
+      <div class="cell">
+        <img src="static/images/intro/support.png" alt="Support Image">
+        <div class="label">(a) Support Image</div>
+      </div>
+      <div class="cell">
+        <img src="static/images/intro/persam_f.png" alt="PerSAM-F result">
+        <div class="label">(b) PerSAM-F</div>
+      </div>
+      <div class="cell">
+        <img src="static/images/intro/matcher.png" alt="Matcher result">
+        <div class="label">(c) Matcher</div>
+      </div>
+      <div class="cell highlight">
+        <img src="static/images/intro/ours.png" alt="PR-MaGIC result">
+        <div class="label">(d) PR-MaGIC (Ours)</div>
+      </div>
+      <div class="cell">
+        <img src="static/images/intro/gt.png" alt="Ground Truth">
+        <div class="label">(e) Ground Truth</div>
+      </div>
+    </div>
+    <figcaption>
+      <strong>Example of prompts (green dots) and segmentation results (red masks).</strong>
+      (b) &amp; (c) show misaligned prompts and degraded segmentation from PerSAM-F and Matcher,
+      while (d) PR-MaGIC successfully captures the full extent of the elephant.
+    </figcaption>
+  </section>
+
+  <!-- ════════════ ABSTRACT ════════════ -->
+  <section>
+    <h2>Abstract</h2>
+    <div class="abstract-box">
+      Visual Foundation Models (VFMs) such as the Segment Anything Model (SAM) have significantly advanced broad use of
+      image segmentation. However, SAM and its variants necessitate substantial manual effort for prompt generation and
+      additional training for specific applications. Recent approaches address these limitations by integrating SAM into
+      in-context (one/few-shot) segmentation, enabling auto-prompting through semantic alignment between query and
+      support images. Despite these efforts, they still generate sub-optimal prompts that degrade segmentation quality
+      due to visual inconsistencies between support and query images.
+      <br><br>
+      To tackle this limitation, we introduce <strong>PR-MaGIC</strong>
+      (<strong>P</strong>rompt <strong>R</strong>efinement via <strong>Ma</strong>sk Decoder
+      <strong>G</strong>radient Flow for <strong>I</strong>n-<strong>C</strong>ontext Segmentation),
+      a training-free test-time framework that refines prompts via gradient flow derived from SAM's mask decoder.
+      PR-MaGIC seamlessly integrates into in-context segmentation frameworks, being theoretically grounded yet
+      practically stabilized through a simple top-1 selection strategy that ensures robust performance across samples.
+      Extensive evaluations demonstrate that PR-MaGIC consistently improves segmentation quality across various
+      benchmarks, effectively mitigating inadequate prompts without requiring additional training or architectural
+      modifications.
+    </div>
+  </section>
+
+  <!-- ════════════ CONTRIBUTIONS ════════════ -->
+  <section>
+    <h2>Key Contributions</h2>
+    <ul class="contributions">
+      <li>
+        <span class="icon">&#x1F9EA;</span>
+        <div>
+          <strong>Training-free test-time refinement via gradient flow.</strong>
+          A novel training-free refinement method that updates the query embedding with a mask-decoder-driven gradient
+          flow and resamples prompts, improving segmentation quality without learnable parameters, architectural
+          changes, or extra data.
+        </div>
+      </li>
+      <li>
+        <span class="icon">&#x1F3AF;</span>
+        <div>
+          <strong>Segmentation mask selection for robustness.</strong>
+          We generate candidate masks across <em>T</em> iterations and propose a simple top-1 support&ndash;query
+          similarity selection to choose the final mask, which safeguards against step-size sensitivity and
+          sample-dependent instability.
+        </div>
+      </li>
+      <li>
+        <span class="icon">&#x1F4D0;</span>
+        <div>
+          <strong>Convergence analysis under a proximity assumption.</strong>
+          We provide a theoretical analysis showing that, when the initial embedding distribution is near a
+          decoder-optimal neighborhood, the entropy-regularized KL gradient flow drives <em>exponential convergence</em>
+          of the query embeddings.
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ════════════ METHOD ════════════ -->
+  <section>
+    <h2>Method</h2>
+
+    <figure>
+      <img src="static/images/method_overview.png" alt="Overview of PR-MaGIC">
+      <figcaption>
+        <strong>Overview of PR-MaGIC.</strong>
+        The <em>Encoder</em> maps support and query images to embeddings.
+        <strong>(1) Image Embedding:</strong> encoder maps the support and query images to embeddings
+        <em>z<sup>s</sup><sub>0</sub></em> and <em>z<sup>q</sup><sub>0</sub></em>.
+        <strong>(2) Prompt Refinement via Gradient Flow:</strong> using the mask decoder logit <em>d<sub>&phi;</sub></em>,
+        query embeddings are updated and prompts <em>P<sub>t+1</sub></em> are resampled for <em>t = 0&hellip;T&minus;1</em>,
+        forming a candidate mask set.
+        <strong>(3) Segmentation Mask Selection (Top-1):</strong> the mask whose mask-aware query embedding
+        has the highest similarity to the support embedding is selected as the final output.
+      </figcaption>
+    </figure>
+
+    <div class="steps">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <h4>Image Embedding</h4>
+        <p>The encoder extracts query embedding <em>z<sup>q</sup><sub>0</sub></em> and support embedding
+           <em>z<sup>s</sup><sub>0</sub></em> from the query and support images.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <h4>Gradient Flow Refinement</h4>
+        <p>Query embeddings are iteratively updated via mask-decoder-driven gradient flow.
+           At each step, new prompts are sampled from the updated embeddings.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <h4>Top-1 Mask Selection</h4>
+        <p>From <em>T</em> candidate masks, the one with the highest support&ndash;query
+           similarity is selected as the final segmentation.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:28px;">Entropy-Regularized KL Gradient Flow</h3>
+    <p>
+      PR-MaGIC minimizes the entropy-regularized KL-divergence between the target distribution &mu; and the
+      candidate distribution &rho;:
+    </p>
+    <div class="eq-box">
+      \(\displaystyle \min_{\rho}\, F_{\mu}(\rho) = \min_{\rho} \bigl\{ \mathrm{KL}(\mu \| \rho) - \gamma\,H(\rho) \bigr\}\)
+    </div>
+    <p>
+      At each iteration <em>t</em>, the query embedding <em>v<sub>t</sub></em> is updated as:
+    </p>
+    <div class="eq-box">
+      \(\displaystyle v_{t+1} = v_t + \eta\,\nabla_v d_{\phi}(v) + \sqrt{2\gamma\eta}\,\xi_t, \quad \xi_t \sim \mathcal{N}(\mathbf{0}, \mathbf{I})\)
+    </div>
+    <p>
+      where &eta; &gt; 0 is the step size, &phi; denotes the mask decoder parameters, and &gamma; controls
+      entropy regularization. This theoretically supported flow drives query embeddings toward a
+      decoder-optimal neighborhood, effectively mitigating sub-optimal initial prompts.
+    </p>
+  </section>
+
+  <!-- ════════════ QUANTITATIVE RESULTS ════════════ -->
+  <section>
+    <h2>Quantitative Results</h2>
+    <p style="text-align:center; font-size:0.9rem; color:#555; margin-bottom:14px;">
+      mIoU (%) on six benchmark datasets.
+      <strong>B</strong> = Baseline, <strong>T</strong> = PR-MaGIC with Top-1 selection,
+      <strong>O*</strong> = PR-MaGIC with Oracle selection.
+      <strong>Bold</strong> indicates T values that improve over baseline.
+    </p>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2" class="col-method">Method</th>
+            <th colspan="9" class="group-header">(a) Semantic Segmentation</th>
+            <th colspan="9" class="group-header">(b) Part / Fine-grained Segmentation</th>
+          </tr>
+          <tr>
+            <th colspan="3">FSS-1000</th>
+            <th colspan="3">COCO-20<sup>i</sup></th>
+            <th colspan="3">LVIS-92<sup>i</sup></th>
+            <th colspan="3">PACO-Part</th>
+            <th colspan="3">PASCAL-Part</th>
+            <th colspan="3">DIS5K</th>
+          </tr>
+          <tr>
+            <th class="col-method"></th>
+            <th>B</th><th>T</th><th>O*</th>
+            <th>B</th><th>T</th><th>O*</th>
+            <th>B</th><th>T</th><th>O*</th>
+            <th>B</th><th>T</th><th>O*</th>
+            <th>B</th><th>T</th><th>O*</th>
+            <th>B</th><th>T</th><th>O*</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="col-method">PerSAM-F</td>
+            <td>58.41</td><td class="improved">67.19</td><td>72.45</td>
+            <td>44.64</td><td class="improved">46.83</td><td>51.74</td>
+            <td>42.37</td><td class="improved">44.48</td><td>47.29</td>
+            <td>39.60</td><td class="improved">40.72</td><td>43.39</td>
+            <td>42.72</td><td class="improved">43.87</td><td>46.43</td>
+            <td>46.82</td><td class="improved">49.99</td><td>53.46</td>
+          </tr>
+          <tr>
+            <td class="col-method">Matcher (1-shot)</td>
+            <td>92.08</td><td>92.06</td><td>93.55</td>
+            <td>69.53</td><td class="improved">71.23</td><td>76.14</td>
+            <td>59.39</td><td class="improved">61.52</td><td>64.75</td>
+            <td>50.27</td><td class="improved">54.08</td><td>56.71</td>
+            <td>54.76</td><td class="improved">58.28</td><td>61.13</td>
+            <td>46.65</td><td class="improved">55.08</td><td>58.10</td>
+          </tr>
+          <tr>
+            <td class="col-method">Matcher (5-shot)</td>
+            <td>93.26</td><td class="improved">93.41</td><td>94.32</td>
+            <td>67.69</td><td class="improved">70.74</td><td>74.88</td>
+            <td>57.14</td><td class="improved">60.79</td><td>63.88</td>
+            <td>48.66</td><td class="improved">53.15</td><td>55.30</td>
+            <td>54.54</td><td class="improved">59.27</td><td>61.55</td>
+            <td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ════════════ QUALITATIVE RESULTS ════════════ -->
+  <section>
+    <h2>Qualitative Results</h2>
+    <p style="text-align:center; font-size:0.9rem; color:#555; margin-bottom:20px;">
+      PR-MaGIC (Refined) consistently produces more complete and accurate segmentations compared to
+      the baselines (PerSAM-F and Matcher) across both semantic and part segmentation tasks.
+    </p>
+
+    <!-- Semantic segmentation -->
+    <div class="results-section-title">Semantic Segmentation</div>
+
+    <div class="baseline-label">PerSAM-F + PR-MaGIC</div>
+    <div class="results-row">
+      <div class="cell"><img src="static/images/results/semantic/persam_ref.png" alt="Support"><div class="label">Support Image</div></div>
+      <div class="cell"><img src="static/images/results/semantic/persam_before.png" alt="PerSAM-F"><div class="label">Baseline (PerSAM-F)</div></div>
+      <div class="cell highlight"><img src="static/images/results/semantic/persam_after.png" alt="Ours"><div class="label">Refined (Ours)</div></div>
+      <div class="cell"><img src="static/images/results/semantic/persam_gt.png" alt="GT"><div class="label">Ground Truth</div></div>
+    </div>
+
+    <div class="baseline-label">Matcher 1-shot + PR-MaGIC</div>
+    <div class="results-row">
+      <div class="cell"><img src="static/images/results/semantic/matcher_ref.png" alt="Support"><div class="label">Support Image</div></div>
+      <div class="cell"><img src="static/images/results/semantic/matcher_before.png" alt="Matcher"><div class="label">Baseline (Matcher)</div></div>
+      <div class="cell highlight"><img src="static/images/results/semantic/matcher_after.png" alt="Ours"><div class="label">Refined (Ours)</div></div>
+      <div class="cell"><img src="static/images/results/semantic/matcher_gt.png" alt="GT"><div class="label">Ground Truth</div></div>
+    </div>
+
+    <!-- Part segmentation -->
+    <div class="results-section-title" style="margin-top:20px;">Part Segmentation</div>
+
+    <div class="baseline-label">PerSAM-F + PR-MaGIC</div>
+    <div class="results-row">
+      <div class="cell"><img src="static/images/results/part/persam_ref.png" alt="Support"><div class="label">Support Image</div></div>
+      <div class="cell"><img src="static/images/results/part/persam_before.png" alt="PerSAM-F"><div class="label">Baseline (PerSAM-F)</div></div>
+      <div class="cell highlight"><img src="static/images/results/part/persam_after.png" alt="Ours"><div class="label">Refined (Ours)</div></div>
+      <div class="cell"><img src="static/images/results/part/persam_gt.png" alt="GT"><div class="label">Ground Truth</div></div>
+    </div>
+
+    <div class="baseline-label">Matcher 1-shot + PR-MaGIC</div>
+    <div class="results-row">
+      <div class="cell"><img src="static/images/results/part/matcher_ref.png" alt="Support"><div class="label">Support Image</div></div>
+      <div class="cell"><img src="static/images/results/part/matcher_before.png" alt="Matcher"><div class="label">Baseline (Matcher)</div></div>
+      <div class="cell highlight"><img src="static/images/results/part/matcher_after.png" alt="Ours"><div class="label">Refined (Ours)</div></div>
+      <div class="cell"><img src="static/images/results/part/matcher_gt.png" alt="GT"><div class="label">Ground Truth</div></div>
+    </div>
+  </section>
+
+  <!-- ════════════ BIBTEX ════════════ -->
+  <section>
+    <h2>BibTeX</h2>
+    <pre>@inproceedings{lee2026prmagic,
+  title     = {PR-MaGIC: Prompt Refinement Via Mask Decoder Gradient Flow
+               For In-Context Segmentation},
+  author    = {Lee, Minjae and Hur, Sungwoo and Hwang, Soojin and Kim, Won Hwa},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision
+               and Pattern Recognition (CVPR)},
+  year      = {2026}
+}</pre>
+  </section>
+
+  <!-- ════════════ ACKNOWLEDGMENT ════════════ -->
+  <section>
+    <h2>Acknowledgment</h2>
+    <p style="text-align:center; font-size:0.9rem; color:#555;">
+      This research was supported by RS-2025-02216257 (70%), RS-2022-II220290 (20%),
+      and RS-2019-II191906 (AI Graduate Program at POSTECH, 10%).
+    </p>
+  </section>
+
+</div><!-- .container -->
+
+<footer>
+  PR-MaGIC &mdash; POSTECH &middot; CVPR 2026
+</footer>
+
+</body>
+</html>
