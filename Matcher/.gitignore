@@ -43,5 +43,6 @@ gradio_demo
 output*
 vis*
 !matcher/common/vis.py
+!dinov2/models/vision_transformer.py
 rebuttal
 sam-hq
