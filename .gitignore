@@ -27,3 +27,6 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Promo video working dir (not part of repo)
+making_video/

@@ -62,9 +62,9 @@ def test(matcher, dataloader, logger, args=None):
     il_iters_grid = [[] for _ in range(K)]
     per_sample_best_iters = {}
 
-    logger.info("\n[IL4-* index mapping]")
+    logger.info("\n[PRMAGIC-* index mapping]")
     for i, (a, b) in enumerate(grid, start=1):
-        logger.info(f"  IL4-{i}: alpha={a}, beta={b}")
+        logger.info(f"  PRMAGIC-{i}: alpha={a}, beta={b}")
 
     p_bar = tqdm(dataloader, total=len(dataloader))
 
@@ -146,7 +146,7 @@ def test(matcher, dataloader, logger, args=None):
             logger.info(f"  (2) Mean(1..T)   : {_safe_mean(mean_after0_list):.4f}")
             logger.info(f"  (3) Oracle(0..T) : {_safe_mean(oracle_after0_list):.4f}")
             for i in range(K):
-                logger.info(f"  (4) IL4-{i+1}     : {_safe_mean(il_mious_grid[i]):.4f} | Avg iter {_safe_mean(il_iters_grid[i]):.2f}")
+                logger.info(f"  (4) PRMAGIC-{i+1}     : {_safe_mean(il_mious_grid[i]):.4f} | Avg iter {_safe_mean(il_iters_grid[i]):.2f}")
 
     # Per-step result log
     for t in range(args.nested):
@@ -232,7 +232,7 @@ if __name__ == '__main__':
     parser.add_argument('--beta_list',   type=str, default="")
     parser.add_argument('--il-metric',   type=str, default='cos', choices=['cos', 'kl'],
                         help='base term for IL selection (cosine or -KL)')
-    parser.add_argument('--il-report',   action='store_true', help='print IL-stop summary at the end')
+    parser.add_argument('--il-report',   action='store_true', help='print PR-MaGIC summary at the end')
 
     # CSV output path (same format as PerSAM)
     parser.add_argument('--outdir', type=str, default='')
@@ -291,7 +291,7 @@ if __name__ == '__main__':
     grid = csv_payload['grid']
     K = len(grid)
     if per_sample_best_iters:
-        col_names = [f'IL4_{i+1}_best_iter' for i in range(K)]
+        col_names = [f'PRMAGIC_{i+1}_best_iter' for i in range(K)]
         rows = []
         for obj, bests in per_sample_best_iters.items():
             row = {'obj_name': obj}
@@ -310,8 +310,8 @@ if __name__ == '__main__':
     baseline0_mious = csv_payload['baseline0_mious']
     mean_after0_list = csv_payload['mean_after0_list']
     oracle_after0_list = csv_payload['oracle_after0_list']
-    il_mious_grid = csv_payload['il_mious_grid']
-    il_iters_grid = csv_payload['il_iters_grid']
+    il_mious_grid = csv_payload['PRMAGIC_mious_grid']
+    il_iters_grid = csv_payload['PRMAGIC_iters_grid']
 
     Logger.info(f"\n--- Final Results (seed:{args.seed})---")
     Logger.info(f"1) Baseline (no refinement, iter 0): Avg mIoU = {_safe_mean(baseline0_mious):.4f}")
@@ -320,4 +320,4 @@ if __name__ == '__main__':
     for i, (a, b) in enumerate(grid):
         miou_avg = _safe_mean(il_mious_grid[i])
         iter_avg = _safe_mean(il_iters_grid[i])
-        Logger.info(f"4-{i+1}) IL-stop (alpha={a}, beta={b}): Avg mIoU = {miou_avg:.4f} | Avg stop iter = {iter_avg:.2f} (0-based), {iter_avg+1:.2f} (1-based)")
+        Logger.info(f"4-{i+1}) PR-MaGIC (alpha={a}, beta={b}): Avg mIoU = {miou_avg:.4f} | Avg stop iter = {iter_avg:.2f} (0-based), {iter_avg+1:.2f} (1-based)")

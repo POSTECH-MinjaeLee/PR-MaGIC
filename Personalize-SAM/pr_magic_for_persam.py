@@ -46,6 +46,8 @@ def get_arguments():
     parser.add_argument('--img-size', type=int, default=518)
     parser.add_argument('--use_original_imgsize', action='store_true')
     parser.add_argument('--points_num', type=int, default=0)
+    parser.add_argument('--num_shards', type=int, default=1, help='sample-wise sharding: total number of shards')
+    parser.add_argument('--shard_id', type=int, default=0, help='sample-wise sharding: this process shard index [0, num_shards)')
 
     # SAM
     parser.add_argument('--ckpt', type=str, default='../weights/sam_vit_h_4b8939.pth')
@@ -109,7 +111,7 @@ def point_selection(mask_sim, device, num_extra, topk=1):
     top1_y = top1_idx % h
     top1_xy = torch.tensor([[top1_y.item(), top1_x.item()]]).to(device)
 
-    quantiles = [(0.99999, num_extra), (0.9999, num_extra)]
+    quantiles = [(0.99, num_extra), (0.90, num_extra)]  # extra prompt points from 99th / 90th percentile similarity bands
     selected_indices = set([top1_idx.item()])
     selected_xy = []
 
@@ -127,10 +129,10 @@ def point_selection(mask_sim, device, num_extra, topk=1):
         sampled_indices = torch.randperm(candidates.shape[0])[:num_to_select]
         sampled_points = candidates[sampled_indices]
         for point in sampled_points:
-            y, x = point.tolist()
-            all_idx = x * h + y
+            row, col = point.tolist()  # nonzero -> [dim0, dim1] = [row, col]
+            all_idx = row * h + col    # match top1_idx flat-index convention
             if all_idx not in selected_indices:
-                selected_xy.append([y, x])
+                selected_xy.append([col, row])  # [x, y] = [col, row], same as top1_xy
                 selected_indices.add(all_idx)
 
     if selected_xy:
@@ -274,9 +276,9 @@ def main():
     il_iters_grid = [[] for _ in range(K)]
     per_sample_best_iters = {}
 
-    print("\n[IL4-* index mapping]")
+    print("\n[PRMAGIC-* index mapping]")
     for i, (a, b) in enumerate(grid, start=1):
-        print(f"  IL4-{i}: alpha={a}, beta={b}")
+        print(f"  PRMAGIC-{i}: alpha={a}, beta={b}")
 
     device = 'cuda:{}'.format(args.device) if torch.cuda.is_available() else "cpu"
     if args.sam_type == 'vit_h':
@@ -293,6 +295,8 @@ def main():
         return float(sum(xs) / len(xs)) if xs else 0.0
 
     for batch_idx, batch in enumerate(p_bar):
+        if batch_idx % args.num_shards != args.shard_id:
+            continue  # sample-wise sharding across GPUs
         class_id = batch['class_id'].item()
         obj_name = f'{batch_idx}_class-{class_id}'
 
@@ -325,7 +329,7 @@ def main():
             print(f"  (2) Mean(1..T)   : {_safe_mean(mean_after0_list):.4f}")
             print(f"  (3) Oracle(0..T) : {_safe_mean(oracle_after0_list):.4f}")
             for i in range(K):
-                print(f"  (4) IL4-{i+1}     : {_safe_mean(il_mious_grid[i]):.4f} | Avg iter {_safe_mean(il_iters_grid[i]):.2f}")
+                print(f"  (4) PRMAGIC-{i+1}     : {_safe_mean(il_mious_grid[i]):.4f} | Avg iter {_safe_mean(il_iters_grid[i]):.2f}")
 
     # Final report
     print(f"\n--- Final Results (seed:{args.seed})---")
@@ -338,7 +342,7 @@ def main():
     for i, (a, b) in enumerate(grid):
         miou_avg = float(sum(il_mious_grid[i]) / len(il_mious_grid[i])) if il_mious_grid[i] else 0.0
         iter_avg = float(sum(il_iters_grid[i]) / len(il_iters_grid[i])) if il_iters_grid[i] else 0.0
-        print(f"4-{i+1}) IL-stop (alpha={a}, beta={b}): Avg mIoU = {miou_avg:.4f} | Avg stop iter = {iter_avg:.2f} (0-based), {iter_avg+1:.2f} (1-based)")
+        print(f"4-{i+1}) PR-MaGIC (alpha={a}, beta={b}): Avg mIoU = {miou_avg:.4f} | Avg stop iter = {iter_avg:.2f} (0-based), {iter_avg+1:.2f} (1-based)")
 
     # CSV output
     csv_dir = os.path.join(args.outdir, f'{args.fold}/csvs')
@@ -355,7 +359,7 @@ def main():
 
     # (B) per-sample best iteration for each (alpha,beta)
     if per_sample_best_iters:
-        col_names = [f'IL4_{i+1}_best_iter' for i in range(K)]
+        col_names = [f'PRMAGIC_{i+1}_best_iter' for i in range(K)]
         rows = []
         for k, (obj, bests) in enumerate(per_sample_best_iters.items()):
             row = {'obj_name': obj}
@@ -420,13 +424,16 @@ def persam_f(args, obj_name, batch, output_path, sam=None, grid=None):
     optimizer = torch.optim.AdamW(mask_weights.parameters(), lr=args.lr, eps=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.train_epoch)
 
+    # FAST: predict() is invariant to mask_weights -> compute logits_high ONCE
+    # (detach: constant multiplier w.r.t. mask_weights, so gradients/result identical;
+    #  removes train_epoch redundant SAM-decoder forwards).
+    masks, scores, logits, logits_high = predictor.predict(
+        point_coords=topk_xy,
+        point_labels=topk_label,
+        multimask_output=True
+    )
+    logits_high_flat = logits_high.flatten(1).detach()
     for _ in range(args.train_epoch):
-        masks, scores, logits, logits_high = predictor.predict(
-            point_coords=topk_xy,
-            point_labels=topk_label,
-            multimask_output=True
-        )
-        logits_high_flat = logits_high.flatten(1)
         weights = torch.cat((1 - mask_weights.weights.sum(0).unsqueeze(0), mask_weights.weights), dim=0)
         logits_high_w = logits_high_flat * weights
         logits_high_w = logits_high_w.sum(0).unsqueeze(0)
@@ -461,8 +468,6 @@ def persam_f(args, obj_name, batch, output_path, sam=None, grid=None):
     # IL selection state
     best_scores = [-1e9 for _ in range(K)]
     best_iters  = [0    for _ in range(K)]
-
-    use_kl = (args.f.lower() == 'kl')
 
     for t in range(T):
         # (1) no-grad: initial mask/box
@@ -556,10 +561,7 @@ def persam_f(args, obj_name, batch, output_path, sam=None, grid=None):
             logit3_high = (high_logits_t3 * weights.unsqueeze(-1)).sum(0)  # HxW pre-sigmoid
             margin = _mask_margin_from_logit(logit3_high, curr_mask.astype(np.float32))
 
-            if use_kl:
-                base = float(torch.sum(support_vec * q_vec).item())
-            else:
-                base = float(torch.sum(support_vec * q_vec).item())  # cosine
+            base = float(torch.sum(support_vec * q_vec).item())  # cosine similarity of masked re-encodings
 
             for k, (alpha, beta) in enumerate(grid):
                 sel_score = base + alpha * float(sam_score) + beta * float(margin)

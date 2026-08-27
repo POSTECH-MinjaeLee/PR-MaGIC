@@ -34,6 +34,32 @@ mIoU (%) on six benchmarks. **B** = Baseline, **T** = PR-MaGIC (Top-1 selection)
 
 ---
 
+## ⚠️ Correction Notice (PerSAM-F results)
+
+The optimal number of prompt points for **PerSAM-F** is a *single* point. However, our method generates new prompts by **moving** points over the mask-decoder-gradient-refined similarity map, so a single point is not enough for the method to operate correctly. We therefore create additional prompt points from the **99% and 90% quantile bands of the similarity map**, and let the refinement process proceed on top of these points.
+
+In the initial commit and the arXiv version, the reported **PerSAM-F** numbers were **incorrect due to a coordinate bug in `point_selection`**: the extra prompt points sampled from the similarity map were assigned **transposed `(x, y)` coordinates** — they were appended as `[row, col]` (and de-duplicated with a flat index of `col*H + row`) instead of `[col, row]` (index `row*H + col`), which is the `[x, y]` order that SAM's `predict` and the top-1 point already use. As a result, every additional prompt point was placed at a mirrored/transposed location in the image, corrupting the prompt set that PR-MaGIC refines. As an urgent fix, we corrected the coordinate order (and the de-duplication index) and report below a **single fixed-random-seed** experiment on **FSS-1000** and **PASCAL-Part**. As the results show, the effect of our method is **always to yield better segmentation results**. The corrected full tables will be released in a new arXiv version.
+
+### Revised results (our setting)
+
+mIoU (%), single fixed random seed. **PR-MaGIC gain** = PR-MaGIC − Baseline (percentage points). We report PerSAM-F's results using only the top-1 point **for reference only**, as the top-1 point is PerSAM-F's own optimal setting rather than ours.
+
+**FSS-1000** (fold 0)
+
+| Setting | Baseline | PR-MaGIC | Oracle | PR-MaGIC gain |
+|---|---|---|---|---|
+| PerSAM-F (top-1 point, reference) | 85.10 | 85.87 | 87.53 | +0.77 |
+| **Ours (revised, 99/90 points)** | 85.77 | **87.42** | 91.89 | **+1.65** |
+
+**PASCAL-Part** (mean over folds 0–3)
+
+| Setting | Baseline | PR-MaGIC | Oracle | PR-MaGIC gain |
+|---|---|---|---|---|
+| PerSAM-F (top-1 point, reference) | 51.12 | 51.52 | 52.61 | +0.40 |
+| **Ours (revised, 99/90 points)** | 49.46 | **52.38** | 58.13 | **+2.92** |
+
+---
+
 ## Installation
 
 ```bash
