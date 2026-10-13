@@ -22,43 +22,30 @@ PR-MaGIC is a **training-free, test-time** prompt refinement framework for in-co
 
 ---
 
-## Results
-
-mIoU (%) on six benchmarks. **B** = Baseline, **T** = PR-MaGIC (Top-1 selection), **O** = PR-MaGIC (Oracle).
-
-| Method | FSS B/T/O | COCO B/T/O | LVIS B/T/O | PACO B/T/O | Pascal B/T/O | DIS B/T/O |
-|---|---|---|---|---|---|---|
-| PerSAM-F | 58.41 / **67.19** / 72.45 | 44.64 / **46.83** / 51.74 | 42.37 / **44.48** / 47.29 | 39.60 / **40.72** / 43.39 | 42.72 / **43.87** / 46.43 | 46.82 / **49.99** / 53.46 |
-| Matcher (1-shot) | 92.08 / 92.06 / 93.55 | 69.53 / **71.23** / 76.14 | 59.39 / **61.52** / 64.75 | 50.27 / **54.08** / 56.71 | 54.76 / **58.28** / 61.13 | 46.65 / **55.08** / 58.10 |
-| Matcher (5-shot) | 93.26 / **93.41** / 94.32 | 67.69 / **70.74** / 74.88 | 57.14 / **60.79** / 63.88 | 48.66 / **53.15** / 55.30 | 54.54 / **59.27** / 61.55 | — |
-
----
-
 ## ⚠️ Correction Notice (PerSAM-F results)
 
 The optimal number of prompt points for **PerSAM-F** is a *single* point. However, our method generates new prompts by **moving** points over the mask-decoder-gradient-refined similarity map, so a single point is not enough for the method to operate correctly. We therefore create additional prompt points from the **99% and 90% quantile bands of the similarity map**, and let the refinement process proceed on top of these points.
 
-In the initial commit and the arXiv version, the reported **PerSAM-F** numbers were **incorrect due to a coordinate bug in `point_selection`**: the extra prompt points sampled from the similarity map were assigned **transposed `(x, y)` coordinates** — they were appended as `[row, col]` (and de-duplicated with a flat index of `col*H + row`) instead of `[col, row]` (index `row*H + col`), which is the `[x, y]` order that SAM's `predict` and the top-1 point already use. As a result, every additional prompt point was placed at a mirrored/transposed location in the image, corrupting the prompt set that PR-MaGIC refines. As an urgent fix, we corrected the coordinate order (and the de-duplication index) and report below a **single fixed-random-seed** experiment on **FSS-1000** and **PASCAL-Part**. As the results show, the effect of our method is **always to yield better segmentation results**. The corrected full tables will be released in a new arXiv version.
-
-### Revised results (our setting)
-
-mIoU (%), single fixed random seed. **PR-MaGIC gain** = PR-MaGIC − Baseline (percentage points). We report PerSAM-F's results using only the top-1 point **for reference only**, as the top-1 point is PerSAM-F's own optimal setting rather than ours.
-
-**FSS-1000** (fold 0)
-
-| Setting | Baseline | PR-MaGIC | Oracle | PR-MaGIC gain |
-|---|---|---|---|---|
-| PerSAM-F (top-1 point, reference) | 85.10 | 85.87 | 87.53 | +0.77 |
-| **Ours (revised, 99/90 points)** | 85.77 | **87.42** | 91.89 | **+1.65** |
-
-**PASCAL-Part** (mean over folds 0–3)
-
-| Setting | Baseline | PR-MaGIC | Oracle | PR-MaGIC gain |
-|---|---|---|---|---|
-| PerSAM-F (top-1 point, reference) | 51.12 | 51.52 | 52.61 | +0.40 |
-| **Ours (revised, 99/90 points)** | 49.46 | **52.38** | 58.13 | **+2.92** |
+In the initial commit and the arXiv version, the reported **PerSAM-F** numbers were **incorrect due to a coordinate bug in `point_selection`**: the extra prompt points sampled from the similarity map were assigned **transposed `(x, y)` coordinates** — they were appended as `[row, col]` (and de-duplicated with a flat index of `col*H + row`) instead of `[col, row]` (index `row*H + col`), which is the `[x, y]` order that SAM's `predict` and the top-1 point already use. As a result, every additional prompt point was placed at a mirrored/transposed location in the image, corrupting the prompt set that PR-MaGIC refines. We corrected the coordinate order and de-duplication index. The corrected PerSAM-F results above use the **99% and 90% quantile bands** and report the mean and standard deviation across **five seeds (42–46)** for all six benchmarks.
 
 ---
+
+## Results
+
+mIoU (%) on six benchmarks. **B** = Baseline, **T** = PR-MaGIC (Top-1 selection), **O** = PR-MaGIC (Oracle). 
+
+| Method | FSS B/T/O | COCO B/T/O | LVIS B/T/O | PACO B/T/O | Pascal B/T/O | DIS B/T/O |
+|---|---|---|---|---|---|---|
+| PerSAM-F (CVPR-submitted : coordinate bug) | 58.41 / **67.19** / 72.45 | 44.64 / **46.83** / 51.74 | 42.37 / **44.48** / 47.29 | 39.60 / **40.72** / 43.39 | 42.72 / **43.87** / 46.43 | 46.82 / **49.99** / 53.46 |
+| PerSAM-F (coordinate corrected) | 85.85 / **87.26** / 91.88  | 53.36 / **55.96** / 63.89 | 47.62 / **50.76** / 56.09  | 45.21 / **48.17** / 54.20  | 48.43 / **51.69** / 57.08 | 60.90 / **64.66** / 71.98 |
+| Matcher (1-shot) | 92.08 / 92.06 / 93.55 | 69.53 / **71.23** / 76.14 | 59.39 / **61.52** / 64.75 | 50.27 / **54.08** / 56.71 | 54.76 / **58.28** / 61.13 | 46.65 / **55.08** / 58.10 |
+| Matcher (5-shot) | 93.26 / **93.41** / 94.32 | 67.69 / **70.74** / 74.88 | 57.14 / **60.79** / 63.88 | 48.66 / **53.15** / 55.30 | 54.54 / **59.27** / 61.55 | — |
+
+**October 13, 2026 — Corrected PerSAM-F results (mean across seeds 42–46).**
+
+---
+
+
 
 ## Installation
 
